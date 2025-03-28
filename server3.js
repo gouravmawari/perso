@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const photoRoutes = require('./API');
+const path = require('path');
 
 // Load environment variables
 dotenv.config();
@@ -10,6 +11,9 @@ const app = express();
 
 // Middleware to parse JSON
 app.use(express.json());
+
+// Serve static files from best_photos directory
+app.use('/best_photos', express.static(path.join(__dirname, 'best_photos')));
 
 // Use the photo routes
 app.use('/api/photos', photoRoutes);

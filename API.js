@@ -5,6 +5,21 @@ const path = require('path');
 const Photo = require('./schema');
 const mongoose = require('mongoose');
 const nodemailer = require('nodemailer');
+
+// Define BestPhoto schema
+const bestPhotoSchema = new mongoose.Schema({
+    photoPath: {
+        type: String,
+        required: true,
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now,
+    },
+});
+
+const BestPhoto = mongoose.model('BestPhoto', bestPhotoSchema);
+
 // Define Job schema for the queue
 const jobSchema = new mongoose.Schema({
     email: { type: String, required: true },
@@ -63,6 +78,32 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage: storage,
+    fileFilter: (req, file, cb) => {
+        const filetypes = /jpeg|jpg|png/;
+        const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = filetypes.test(file.mimetype);
+        if (extname && mimetype) {
+            return cb(null, true);
+        } else {
+            cb(new Error('Only .jpg, .jpeg, and .png files are allowed!'));
+        }
+    },
+    limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+// Configure Multer for best photos
+const bestPhotoStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'best_photos/');
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, `best-${uniqueSuffix}${path.extname(file.originalname)}`);
+    },
+});
+
+const bestPhotoUpload = multer({
+    storage: bestPhotoStorage,
     fileFilter: (req, file, cb) => {
         const filetypes = /jpeg|jpg|png/;
         const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
@@ -200,6 +241,43 @@ router.post('/process-top-job', async (req, res) => {
         res.status(200).json({ message: 'Top job processed', email: topJob.email, status: topJob.status });
     } catch (error) {
         res.status(500).json({ message: 'Error processing top job', error: error.message });
+    }
+});
+
+// Add best photo endpoint
+router.post('/addbestphoto', bestPhotoUpload.single('photo'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'No photo uploaded' });
+        }
+
+        const photoPath = req.file.path;
+        const bestPhoto = new BestPhoto({ photoPath });
+        await bestPhoto.save();
+
+        res.status(201).json({ 
+            message: 'Best photo added successfully',
+            photoPath: photoPath
+        });
+    } catch (error) {
+        console.error("Error adding best photo:", error.message);
+        res.status(500).json({ message: 'Error adding best photo', error: error.message });
+    }
+});
+
+// Get all best photos endpoint
+router.get('/getbestphotos', async (req, res) => {
+    try {
+        const bestPhotos = await BestPhoto.find().sort({ createdAt: -1 });
+        const photoUrls = bestPhotos.map(photo => ({
+            url: `/best_photos/${path.basename(photo.photoPath)}`,
+            createdAt: photo.createdAt
+        }));
+        
+        res.status(200).json(photoUrls);
+    } catch (error) {
+        console.error("Error retrieving best photos:", error.message);
+        res.status(500).json({ message: 'Error retrieving best photos', error: error.message });
     }
 });
 
