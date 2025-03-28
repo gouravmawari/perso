@@ -183,21 +183,56 @@ router.post('/upload', upload.single('photo'), async (req, res) => {
 });
 
 // Top job download API (unchanged)
+// router.get('/top-job-download', async (req, res) => {
+//     try {
+//         let topJob = await Job.findOne({ 
+//             status: 'pending',
+//             paid: true 
+//         }).sort({ priority: 1 });
+
+//         if (!topJob) {
+//             topJob = await Job.findOne({ 
+//                 status: 'pending',
+//                 paid: false 
+//             }).sort({ priority: 1 });
+//         }
+
+//         if (!topJob) {
+//             return res.status(404).json({ message: 'No pending jobs in the queue' });
+//         }
+
+//         const { email, photoPath } = topJob;
+//         console.log("Top job for download:", { email, photoPath, paid: topJob.paid });
+//         res.download(photoPath, path.basename(photoPath));
+//     } catch (error) {
+//         console.error("Error retrieving top job:", error.message);
+//         res.status(500).json({ message: 'Error retrieving top job', error: error.message });
+//     }
+// });
+
 router.get('/top-job-download', async (req, res) => {
     try {
-        let topJob = await Job.findOne({ 
+        // Log all pending paid jobs
+        const paidJobs = await Job.find({ 
             status: 'pending',
             paid: true 
         }).sort({ priority: 1 });
+        // console.log("Paid pending jobs found:", paidJobs.length, paidJobs);
+
+        let topJob = paidJobs[0]; // Take the first paid job if it exists
 
         if (!topJob) {
-            topJob = await Job.findOne({ 
+            // Log all pending unpaid jobs
+            const unpaidJobs = await Job.find({ 
                 status: 'pending',
-                paid: false 
             }).sort({ priority: 1 });
+            // console.log("Unpaid pending jobs found:", unpaidJobs.length, unpaidJobs);
+
+            topJob = unpaidJobs[0]; // Take the first unpaid job if it exists
         }
 
         if (!topJob) {
+            console.log("No pending jobs found in either category");
             return res.status(404).json({ message: 'No pending jobs in the queue' });
         }
 
@@ -209,6 +244,9 @@ router.get('/top-job-download', async (req, res) => {
         res.status(500).json({ message: 'Error retrieving top job', error: error.message });
     }
 });
+
+
+
 
 // Pop top job API (unchanged)
 router.post('/pop-top-job', upload.single('photo'), async (req, res) => {
@@ -226,10 +264,9 @@ router.post('/pop-top-job', upload.single('photo'), async (req, res) => {
         if (!topJob) {
             topJob = await Job.findOne({ 
                 status: 'pending',
-                paid: false 
             }).sort({ priority: 1 });
         }
-
+        // console.log("topjob"topJob);
         if (!topJob) {
             return res.status(404).json({ message: 'No pending jobs in the queue' });
         }
