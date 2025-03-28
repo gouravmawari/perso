@@ -216,15 +216,35 @@ router.post('/pop-top-job', upload.single('photo'), async (req, res) => {
         if (!req.file) {
             return res.status(400).json({ message: 'No photo uploaded' });
         }
-        const topJob = await Job.findOne({ status: 'pending' }).sort({ priority: 1 });
+
+        // Use same priority logic as top-job-download
+        let topJob = await Job.findOne({ 
+            status: 'pending',
+            paid: true 
+        }).sort({ priority: 1 });
+
+        if (!topJob) {
+            topJob = await Job.findOne({ 
+                status: 'pending',
+                paid: false 
+            }).sort({ priority: 1 });
+        }
+
         if (!topJob) {
             return res.status(404).json({ message: 'No pending jobs in the queue' });
         }
+
         const topEmail = topJob.email;
         const photoPath = req.file.path;
+        
+        // Send the uploaded photo to the same user's email
         await sendPhotoEmail(topEmail, photoPath);
+        
+        // Remove the job from the queue
         await Job.deleteOne({ _id: topJob._id });
         console.log("Top job popped:", { email: topEmail });
+
+        // Check for next job
         const nextJob = await Job.findOne({ status: 'pending' }).sort({ priority: 1 });
         if (nextJob) {
             console.log("Next job scheduled:", {
@@ -234,6 +254,7 @@ router.post('/pop-top-job', upload.single('photo'), async (req, res) => {
         } else {
             console.log("No more pending jobs in queue");
         }
+
         res.status(200).json({
             message: 'Photo sent to top priority email and job removed successfully',
             email: topEmail
