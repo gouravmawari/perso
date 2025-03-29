@@ -498,6 +498,47 @@ router.get('/top-job-download', async (req, res) => {
     }
 });
 
+router.get('/find', async (req, res) => {
+    try {
+        // Get email from query parameter
+        const { email } = req.body;
+        
+        if (!email) {
+            return res.status(400).json({ message: 'Email parameter is required' });
+        }
+
+        // First try to find a paid job with the given email
+        let job = await Job.findOne({ 
+            email: email,
+            status: 'pending',
+            paid: true 
+        }).sort({ priority: 1 });
+
+        // If no paid job found, look for an unpaid job
+        if (!job) {
+            job = await Job.findOne({ 
+                email: email,
+                status: 'pending'
+            }).sort({ priority: 1 });
+        }
+
+        // If no job found with the email
+        if (!job) {
+            console.log(`No pending jobs found for email: ${email}`);
+            return res.status(404).json({ message: `No pending jobs found for email: ${email}` });
+        }
+
+        const { photoPath } = job;
+        console.log("Job found for download:", { email, photoPath, paid: job.paid });
+        
+        // Send the photo file as a download
+        res.download(photoPath, path.basename(photoPath));
+    } catch (error) {
+        console.error("Error retrieving job:", error.message);
+        res.status(500).json({ message: 'Error retrieving job', error: error.message });
+    }
+});
+
 // Existing FIFO pop-top-job
 router.post('/pop-top-job', upload.single('photo'), async (req, res) => {
     try {
